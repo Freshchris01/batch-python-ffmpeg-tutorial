@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import config
+import random
 
 try:
     input = raw_input
@@ -85,14 +86,13 @@ def upload_file_to_container(block_blob_client, container_name, file_path):
     :return: A ResourceFile initialized with a SAS URL appropriate for Batch
     tasks.
     """
+    
     blob_name = os.path.basename(file_path)
 
     print('Uploading file {} to container [{}]...'.format(file_path,
                                                           container_name))
 
-    block_blob_client.create_blob_from_path(container_name,
-                                            blob_name,
-                                            file_path)
+    #block_blob_client.create_blob_from_path(container_name, blob_name, file_path)
 
     # Obtain the SAS token for the container.
     sas_token = get_container_sas_token(block_blob_client,
@@ -101,6 +101,7 @@ def upload_file_to_container(block_blob_client, container_name, file_path):
     sas_url = block_blob_client.make_blob_url(container_name,
                                               blob_name,
                                               sas_token=sas_token)
+    print(blob_name)
 
     return batchmodels.ResourceFile(file_path=blob_name,
                                     http_url=sas_url)
@@ -214,6 +215,7 @@ def create_job(batch_service_client, job_id, pool_id):
     print('Creating job [{}]...'.format(job_id))
 
     job = batch.models.JobAddParameter(
+        priority=0, # set between -1000 and 1000
         id=job_id,
         pool_info=batch.models.PoolInformation(pool_id=pool_id))
 
@@ -309,7 +311,7 @@ if __name__ == '__main__':
     # don't yet exist.
 
     input_container_name = 'input'
-    output_container_name = 'output'
+    output_container_name = 'output' + config._JOB_ID
     blob_client.create_container(input_container_name, fail_on_exist=False)
     blob_client.create_container(output_container_name, fail_on_exist=False)
     print('Container [{}] created.'.format(input_container_name))
@@ -327,7 +329,8 @@ if __name__ == '__main__':
     # Upload the input files. This is the collection of files that are to be processed by the tasks.
     input_files = [
         upload_file_to_container(blob_client, input_container_name, file_path)
-        for file_path in input_file_paths]
+        #for file_path in ["1.mp4", "2.mp4", "3.mp4", "4.mp4", "5.mp4"]]
+        for file_path in ["6.mp4", "7.mp4", "8.mp4", "9.mp4", "10.mp4"]]
 
     # Obtain a shared access signature URL that provides write access to the output
     # container to which the tasks will upload their output.
@@ -349,7 +352,7 @@ if __name__ == '__main__':
     try:
         # Create the pool that will contain the compute nodes that will execute the
         # tasks.
-        create_pool(batch_client, config._POOL_ID)
+        #create_pool(batch_client, config._POOL_ID)
 
         # Create the job that will run the tasks.
         create_job(batch_client, config._JOB_ID, config._POOL_ID)
@@ -371,23 +374,9 @@ if __name__ == '__main__':
         print_batch_exception(err)
         raise
 
-    # Delete input container in storage
-    print('Deleting container [{}]...'.format(input_container_name))
-    blob_client.delete_container(input_container_name)
-
     # Print out some timing info
     end_time = datetime.datetime.now().replace(microsecond=0)
     print()
     print('Sample end: {}'.format(end_time))
     print('Elapsed time: {}'.format(end_time - start_time))
     print()
-
-    # Clean up Batch resources (if the user so chooses).
-    if query_yes_no('Delete job?') == 'yes':
-        batch_client.job.delete(config._JOB_ID)
-
-    if query_yes_no('Delete pool?') == 'yes':
-        batch_client.pool.delete(config._POOL_ID)
-
-    print()
-    input('Press ENTER to exit...')
